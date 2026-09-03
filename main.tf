@@ -142,7 +142,9 @@ resource "null_resource" "stack" {
         ${var.health_path == "" ? "exit 0" : ""}
         # รอให้ตอบจริงก่อนถือว่าสำเร็จ ไม่งั้น terraform เขียวแต่ของยังไม่ขึ้น
         for i in \$(seq 1 20); do
-          code=\$(curl -fsS -o /dev/null -w '%%{http_code}' http://127.0.0.1:${var.host_port}${var.health_path} 2>/dev/null || echo 000)
+          # ห้ามใส่ -f : มันทำให้ 4xx กลายเป็น exit error แล้ว code เป็น 000
+          # ทั้งที่บาง endpoint ตอบ 4xx เมื่อ request ไม่ครบ = แอปฟังอยู่แล้ว
+          code=\$(curl -sS -o /dev/null -w '%%{http_code}' http://127.0.0.1:${var.host_port}${var.health_path} 2>/dev/null || echo 000)
           if echo \"\$code\" | grep -qE '^(${var.health_ok_codes})$'; then
             echo \"แอปตอบแล้ว (HTTP \$code)\"; exit 0
           fi
