@@ -1,0 +1,26 @@
+project_id = "taladbaanteedin-507109"
+zone       = "asia-southeast1-b"
+vm_name    = "fastagent-prod"
+
+app_name     = "property-wiki"
+source_dir   = ".."
+compose_file = "docker-compose.prod.yml"
+source_paths = ["vault", "mcp-server"]
+
+domain            = "mcp-property-wiki.taladbaanteedin.com"
+host_port         = 8765
+long_lived_stream = true
+health_path       = "/mcp"
+
+# ค่าจริงกรอกบน VM ที่ /opt/property-wiki/.env — ไม่ผ่าน terraform state
+env_keys = [
+  "VAULT_DIR=/app/vault",
+  "MCP_TRANSPORT=http",
+  "MCP_HOST=0.0.0.0",
+  "MCP_PORT=8765",
+  "DB_HOST", "DB_PORT=5432", "DB_DATABASE", "DB_USERNAME", "DB_PASSWORD",
+  "DB_SCHEMA=ddproperty", "DB_TABLE=listings", "DB_SSLMODE=prefer", "DB_TIMEOUT=10",
+]
+
+cron_schedule = "23 22 * * *"
+cron_command  = "docker compose exec -T mcp python refresh_wiki.py"
