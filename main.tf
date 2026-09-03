@@ -16,13 +16,19 @@ locals {
   paths    = join(" ", concat(var.source_paths, [var.compose_file]))
 
   # hash ของทุกไฟล์ที่ส่งขึ้นไป — เปลี่ยนเมื่อไหร่ redeploy เมื่อนั้น
-  src_hash = sha256(join("", [
-    for f in sort(concat([var.compose_file], flatten([
-      for p in var.source_paths : fileexists("${var.source_dir}/${p}")
-      ? [p]
-      : [for sub in fileset("${var.source_dir}/${p}", "**") : "${p}/${sub}"]
-    ]))) : filesha256("${var.source_dir}/${f}")
-  ]))
+  #
+  # source_paths มีทั้งไฟล์เดี่ยวและโฟลเดอร์ จึงรวมผลจาก fileset สองแบบ:
+  #   fileset(dir, p)        -> ตรงกับกรณีที่ p เป็นไฟล์
+  #   fileset(dir, "p/**")   -> ตรงกับกรณีที่ p เป็นโฟลเดอร์
+  # (ห้ามใช้ fileexists แยกเคส — มัน error ใส่ directory แทนที่จะคืน false)
+  src_files = sort(distinct(flatten([
+    for p in concat(var.source_paths, [var.compose_file]) : concat(
+      tolist(fileset(var.source_dir, p)),
+      tolist(fileset(var.source_dir, "${p}/**")),
+    )
+  ])))
+
+  src_hash = sha256(join("", [for f in local.src_files : filesha256("${var.source_dir}/${f}")]))
 
   auth_block = var.auth_token == "" ? "" : <<-EOT
     @unauthorized not header Authorization "Bearer ${var.auth_token}"
