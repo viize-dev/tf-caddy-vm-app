@@ -6,6 +6,21 @@
 ./scripts/deploy.sh          # ครั้งแรกจะถามคำถามแล้วจำไว้ใน app.auto.tfvars
 ```
 
+## ติดตั้ง skill (สำหรับคนใช้ Claude Code)
+
+repo นี้เป็น plugin marketplace ในตัว — ติดตั้งครั้งเดียวแล้วใช้ได้ทุก project:
+
+```
+/plugin marketplace add viize-dev/tf-caddy-vm-app
+/plugin install deploy-to-vm@viize-infra
+```
+
+จากนั้นสั่งเป็นภาษาคนได้เลย: *"deploy แอปนี้ขึ้น VM หน่อย"* · *"แอปบน server ยังดีอยู่ไหม"*
+skill จะถามข้อมูลที่ต้องใช้ทีละข้อ (โดยดูโค้ดใน repo ประกอบ) เขียน `app.auto.tfvars`
+แล้วรัน `deploy.sh` ให้ — พร้อมกฎที่กัน**พังของแอปอื่นบน VM เดียวกัน**
+
+ไม่ใช้ Claude Code ก็ข้ามส่วนนี้ไป รัน `./scripts/deploy.sh` ตรง ๆ ได้เหมือนกัน
+
 **ไม่สร้าง VM / network / firewall / DNS** — อ่านของเดิมด้วย data source
 เพราะของพวกนั้นเป็นของ terraform ชุดที่สร้าง VM ถ้าประกาศซ้ำจะแย่งกันคุม
 

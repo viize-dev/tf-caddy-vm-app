@@ -1,0 +1,29 @@
+{
+  "name": "viize-infra",
+  "owner": {
+    "name": "viize-dev"
+  },
+  "metadata": {
+    "description": "เครื่องมือ deploy ของ viize/BST — เอาแอป docker-compose ไปเกาะ VM ที่มี Caddy อยู่แล้ว",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "deploy-to-vm",
+      "source": "./",
+      "description": "Deploy แอป docker-compose ขึ้น VM ที่มี Caddy — terraform module + wizard + smoke test",
+      "version": "1.0.0",
+      "author": {
+        "name": "viize-dev"
+      },
+      "keywords": [
+        "deploy",
+        "terraform",
+        "caddy",
+        "gcp",
+        "docker-compose"
+      ],
+      "category": "workflow"
+    }
+  ]
+}

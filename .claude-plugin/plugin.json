@@ -1,0 +1,8 @@
+{
+  "name": "deploy-to-vm",
+  "description": "Deploy แอป docker-compose ขึ้น VM ที่มี Caddy อยู่แล้ว ด้วย terraform module tf-caddy-vm-app",
+  "version": "1.0.0",
+  "author": { "name": "viize-dev" },
+  "keywords": ["deploy", "terraform", "caddy", "gcp"],
+  "skills": ["./skills/deploy-to-vm"]
+}
