@@ -30,30 +30,41 @@ locals {
 
   src_hash = sha256(join("", [for f in local.src_files : filesha256("${var.source_dir}/${f}")]))
 
-  auth_block = var.auth_token == "" ? "" : <<-EOT
-    @unauthorized not header Authorization "Bearer ${var.auth_token}"
-    respond @unauthorized 401
-  EOT
+  # สร้าง vhost เป็น "รายการบรรทัด" แล้วค่อย join
+  #
+  # ⚠️ ห้ามใช้ heredoc ที่ interpolate ตัวแปรหลายบรรทัดเข้าไปกลางบล็อก:
+  #    บล็อกว่างจะทำให้ `}` ไปต่อท้ายบรรทัดอื่นกลายเป็น `}  }` ซึ่ง Caddy
+  #    ปฏิเสธทั้งไฟล์ ("unrecognized subdirective }") แล้ว **Caddy ทั้งเครื่อง
+  #    crash-loop** = แอปอื่นบน VM ล่มตามไปด้วย (เจอจริงมาแล้ว)
+  vhost_lines = concat(
+    [
+      "# ${var.app_name} — จัดการโดย terraform (tf-caddy-vm-app)",
+      "# อย่าแก้ไฟล์นี้บนเครื่อง มันจะถูกเขียนทับตอน apply ครั้งถัดไป",
+      "${var.domain} {",
+      "  encode gzip zstd",
+    ],
+    var.auth_token == "" ? [] : [
+      "  @unauthorized not header Authorization \"Bearer ${var.auth_token}\"",
+      "  respond @unauthorized 401",
+    ],
+    [
+      "  reverse_proxy 127.0.0.1:${var.host_port} {",
+      "    header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}",
+    ],
+    var.long_lived_stream ? [
+      "    transport http {",
+      "      read_timeout 0",
+      "      write_timeout 0",
+      "    }",
+    ] : [],
+    [
+      "  }",
+      "}",
+      "",
+    ],
+  )
 
-  # SSE / websocket ต้องปิด timeout ไม่งั้น proxy ตัดกลางคัน
-  stream_block = var.long_lived_stream ? join("\n", [
-    "        transport http {",
-    "          read_timeout 0",
-    "          write_timeout 0",
-    "        }",
-  ]) : ""
-
-  caddy_vhost = <<-EOT
-    # ${var.app_name} — จัดการโดย terraform (tf-caddy-vm-app)
-    # อย่าแก้ไฟล์นี้บนเครื่อง มันจะถูกเขียนทับตอน apply ครั้งถัดไป
-    ${var.domain} {
-      encode gzip zstd
-    ${local.auth_block}
-      reverse_proxy 127.0.0.1:${var.host_port} {
-        header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-    ${local.stream_block}  }
-    }
-  EOT
+  caddy_vhost = join("\n", local.vhost_lines)
 }
 
 # ── ส่ง source ขึ้น VM ────────────────────────────────────────────────────
@@ -181,12 +192,26 @@ resource "null_resource" "caddy" {
       set -euo pipefail
       gcloud compute scp ${local_file.vhost.filename} ${var.vm_name}:/tmp/${var.app_name}.caddy ${local.gcloud_target}
 
-      # reload ไม่ restart — แอปอื่นบนเครื่องเดียวกันจะได้ไม่สะดุด
-      ${local.ssh} 'sudo mkdir -p ${var.caddy_conf_dir} \
-        && sudo mv /tmp/${var.app_name}.caddy ${local.vhost_path} \
-        && sudo chmod 644 ${local.vhost_path} \
-        && (sudo docker exec ${var.caddy_container} caddy reload --config /etc/caddy/Caddyfile 2>/dev/null \
-            || sudo docker restart ${var.caddy_container})'
+      # ⚠️ ต้อง validate ก่อน reload เสมอ — Caddy ตัวนี้ให้บริการแอปอื่นบนเครื่องด้วย
+      #    vhost ที่ syntax ผิดทำให้ Caddy crash-loop = ทุกแอปบน VM ล่ม
+      #    ถ้า validate ไม่ผ่าน ให้ถอดไฟล์ออกแล้วล้มทั้ง apply (ของเดิมยังทำงานต่อ)
+      ${local.ssh} 'set -e
+        sudo mkdir -p ${var.caddy_conf_dir}
+        sudo cp -f ${local.vhost_path} /tmp/vhost.prev 2>/dev/null || true
+        sudo mv /tmp/${var.app_name}.caddy ${local.vhost_path}
+        sudo chmod 644 ${local.vhost_path}
+
+        if ! sudo docker exec ${var.caddy_container} caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/tmp/caddy-validate.log 2>&1; then
+          echo "Caddyfile ไม่ผ่าน validate — ถอด vhost ออกเพื่อไม่ให้ Caddy ล้มทั้งเครื่อง:" >&2
+          tail -5 /tmp/caddy-validate.log >&2
+          if [ -f /tmp/vhost.prev ]; then sudo mv /tmp/vhost.prev ${local.vhost_path}; else sudo rm -f ${local.vhost_path}; fi
+          sudo docker exec ${var.caddy_container} caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
+          exit 1
+        fi
+
+        # reload ไม่ restart — แอปอื่นบนเครื่องเดียวกันจะได้ไม่สะดุด
+        sudo docker exec ${var.caddy_container} caddy reload --config /etc/caddy/Caddyfile
+        sudo rm -f /tmp/vhost.prev'
     EOT
   }
 }

@@ -60,7 +60,8 @@
 | stream โดนตัดกลางคันแบบไม่มี error | reverse proxy ตั้ง read/write timeout | `long_lived_stream = true` → timeout 0 |
 | terraform เขียวแต่ของยังไม่ขึ้น | `docker compose up -d` คืนทันทีโดยไม่รอ container พร้อม | `apply` รอ health check จริงก่อนถือว่าสำเร็จ |
 | แอปที่ deploy ทีหลังทำแอปเดิมล่ม | พอร์ตโฮสต์ชนกัน | `deploy.sh` ตรวจพอร์ตบน VM ก่อน apply |
-| Caddy restart ทำ vhost ของแอปอื่นสะดุด | ใช้ `docker restart` แทน reload | `caddy reload` ก่อน fallback ค่อย restart |
+| Caddy restart ทำ vhost ของแอปอื่นสะดุด | ใช้ `docker restart` แทน reload | `caddy reload` |
+| **vhost syntax ผิด → Caddy crash-loop → แอปอื่นบน VM ล่มหมด** | template ที่ interpolate บล็อกว่างทำให้ `}` ไปต่อท้ายบรรทัดอื่น (`}  }`) | สร้าง vhost เป็น list ของบรรทัดแล้ว join + **`caddy validate` ก่อน reload เสมอ** ถ้าไม่ผ่านให้ถอด vhost ออกแล้วล้ม apply |
 | อยู่หลัง Cloudflare proxy + **Full (strict)** แล้วขอ cert ไม่ได้ | CF ต่อ origin ด้วย HTTPS ตั้งแต่ request แรก แต่ origin ยังไม่มี cert = chicken-and-egg (ACME ไม่ผ่านทั้ง tls-alpn-01 และ http-01) | ใส่ Cloudflare **Origin Certificate** ชั่วคราวให้ CF ต่อติดก่อน แล้ว ACME จะผ่านเองแล้วค่อยถอดออก |
 | bash ตายเงียบ ๆ ไม่มี error | `grep` ไม่เจอ = exit 1 แล้ว `set -e` ฆ่าทั้งสคริปต์ · `"${ARR[@]}"` ของ array ว่างตายใต้ `set -u` (bash 3.2 บน macOS) | `set +e` ตลอดขั้นตรวจ · `${ARR[@]+"${ARR[@]}"}` |
 
