@@ -56,15 +56,26 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── helper สำหรับ wizard ─────────────────────────────────────────────────────
-# ถามพร้อมค่า default — Enter = เอา default
+# อ่านจาก /dev/tty ถ้ามี (เพื่อให้ถามได้แม้ stdout ถูก pipe) ไม่งั้นอ่าน stdin
+# — ห้าม hardcode </dev/tty: ใน CI หรือ container จะได้ "Device not configured"
+#   และทำให้ป้อนคำตอบผ่าน pipe (เช่นตอนเทสต์) ไม่ได้เลย
+# [[ -r /dev/tty ]] เชื่อไม่ได้ — บนบางระบบมันผ่านแต่ open จริงล้ม
+# ("Device not configured") จึงต้องลองเปิด fd ดูเลย ถ้าไม่ได้ค่อย fallback ไป stdin
+if exec 3</dev/tty 2>/dev/null; then :; else exec 3<&0; fi
+
+_ask_raw() { local __v="$1" __p="$2"; read -r -p "$__p" "$__v" <&3; }
+
 ask() {
   local prompt="$1" default="${2:-}" ans
   if [[ -n "$default" ]]; then
-    read -r -p "  ${prompt} [${BOLD}${default}${N}]: " ans </dev/tty
+    _ask_raw ans "  ${prompt} [${BOLD}${default}${N}]: " || true
     echo "${ans:-$default}"
   else
     while :; do
-      read -r -p "  ${prompt}: " ans </dev/tty
+      if ! _ask_raw ans "  ${prompt}: "; then
+        # EOF = ไม่มีใครตอบแล้ว วนต่อก็ไม่มีวันได้คำตอบ
+        echo "" >&2; die "ไม่ได้รับคำตอบสำหรับ: ${prompt}"
+      fi
       [[ -n "$ans" ]] && { echo "$ans"; return; }
       echo "     ${Y}ต้องตอบข้อนี้${N}" >&2
     done
@@ -72,7 +83,7 @@ ask() {
 }
 ask_yn() {
   local prompt="$1" default="${2:-n}" ans
-  read -r -p "  ${prompt} [${default}]: " ans </dev/tty
+  _ask_raw ans "  ${prompt} [${default}]: " || true
   ans="${ans:-$default}"
   [[ "$ans" =~ ^[Yy] ]]
 }
@@ -291,7 +302,7 @@ if [[ $SMOKE_ONLY -eq 0 ]]; then
 
   if [[ $ASSUME_YES -eq 0 ]]; then
     echo ""
-    read -r -p "${BOLD}deploy ตามนี้เลยไหม? [y/N] ${N}" ans </dev/tty
+    read -r -p "${BOLD}deploy ตามนี้เลยไหม? [y/N] ${N}" ans <&3 || true
     [[ "$ans" =~ ^[Yy]$ ]] || { echo "ยกเลิก"; exit 0; }
   fi
 
