@@ -82,13 +82,29 @@ resource "null_resource" "source" {
       set -euo pipefail
       cd ${var.source_dir}
 
-      ${local.ssh} "sudo mkdir -p ${local.remote_dir} && sudo chown \$(whoami) ${local.remote_dir}"
+      # chown -R : ไม่ใช่แค่โฟลเดอร์บนสุด
+      #   ถ้าไม่ใส่ -R ไฟล์/โฟลเดอร์ย่อยจะยังเป็นของ "คนที่ deploy คนแรก"
+      #   dev คนที่สองจะ extract ทับไม่ได้ (tar: Cannot open: Permission denied)
+      #
+      # :0 (group root) + chmod -R g+w : ให้คอนเทนเนอร์เขียนกลับได้
+      #   image รันด้วย uid ที่ไม่ใช่ root แต่ gid 0 (pattern มาตรฐานของ OpenShift/rootless)
+      #   ถ้าปล่อยให้ group เป็นของ dev คนที่ deploy งานที่เขียนไฟล์ (เช่น cron
+      #   ที่อัปเดตข้อมูลใน volume) จะล้มแบบเงียบ ๆ หลังเปลี่ยนคน deploy
+      ${local.ssh} "sudo mkdir -p ${local.remote_dir} \
+        && sudo chown -R \$(whoami):0 ${local.remote_dir} \
+        && sudo chmod -R g+w ${local.remote_dir}"
 
       # COPYFILE_DISABLE=1 : กัน bsdtar บน macOS แนบ AppleDouble (._xxx) ที่ไม่ใช่ UTF-8
       COPYFILE_DISABLE=1 tar czf - ${local.excludes} ${local.paths} \
       | ${local.ssh} "tar xzf - -C ${local.remote_dir}"
 
       ${local.ssh} "cd ${local.remote_dir} && [ '${var.compose_file}' = 'docker-compose.yml' ] || mv -f ${var.compose_file} docker-compose.yml"
+
+      # ไฟล์ที่เพิ่ง extract มาพร้อม mode จากเครื่อง dev — ตั้งสิทธิ์ใหม่ให้ครบ
+      # (.env ไม่แตะ: ต้องเป็น 600 และเป็นของคนที่กรอกไว้)
+      ${local.ssh} "sudo chown -R \$(whoami):0 ${local.remote_dir} \
+        && sudo chmod -R g+w ${local.remote_dir} \
+        && sudo chmod 600 ${local.remote_dir}/.env 2>/dev/null || true"
     EOT
   }
 }

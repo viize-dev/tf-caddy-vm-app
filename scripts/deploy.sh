@@ -239,7 +239,21 @@ VM_IP="$(gcloud compute instances describe "$VM" --zone="$ZONE" --project="$PROJ
 echo "     IP ของ VM : ${VM_IP}"
 
 if [[ $SKIP_CHECKS -eq 0 ]]; then
-  DNS_IP="$(dig +short "$DOMAIN" A 2>/dev/null | tail -1 || true)"
+    # dig ไม่มีบน Windows (Git Bash) — ลองตัวอื่นตามลำดับ ถ้าไม่มีเลยก็ข้ามการตรวจไป
+  # อย่าให้การ "ตรวจ" มาบล็อกการ deploy บนเครื่องที่ไม่มีเครื่องมือ
+  resolve_a() {
+    if command -v dig >/dev/null;     then dig +short "$1" A 2>/dev/null | tail -1
+    elif command -v host >/dev/null;  then host -t A "$1" 2>/dev/null | awk '/has address/{print $NF; exit}'
+    elif command -v nslookup >/dev/null; then nslookup "$1" 2>/dev/null | awk '/^Address: /{a=$2} END{print a}'
+    elif command -v python3 >/dev/null; then python3 -c "import socket,sys; print(socket.gethostbyname(sys.argv[1]))" "$1" 2>/dev/null
+    fi
+  }
+  DNS_IP="$(resolve_a "$DOMAIN" || true)"
+  if [[ -z "$DNS_IP" ]] && ! command -v dig >/dev/null && ! command -v host >/dev/null \
+     && ! command -v nslookup >/dev/null && ! command -v python3 >/dev/null; then
+    warn "ไม่มีเครื่องมือ resolve DNS บนเครื่องนี้ — ข้ามการตรวจ DNS"
+    DNS_IP="$VM_IP"
+  fi
   echo "     DNS       : ${DOMAIN} → ${DNS_IP:-<ไม่มี A record>}"
   [[ -n "$DNS_IP" ]] || die "ยังไม่มี A record ของ ${DOMAIN} — ชี้มาที่ ${VM_IP} ก่อน"
   [[ "$DNS_IP" == "$VM_IP" ]] && ok "DNS ชี้ตรงมาที่ VM" \

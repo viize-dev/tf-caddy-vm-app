@@ -78,6 +78,9 @@ skill จะถามข้อมูลที่ต้องใช้ทีล�
 | Caddy restart ทำ vhost ของแอปอื่นสะดุด | ใช้ `docker restart` แทน reload | `caddy reload` |
 | **vhost syntax ผิด → Caddy crash-loop → แอปอื่นบน VM ล่มหมด** | template ที่ interpolate บล็อกว่างทำให้ `}` ไปต่อท้ายบรรทัดอื่น (`}  }`) | สร้าง vhost เป็น list ของบรรทัดแล้ว join + **`caddy validate` ก่อน reload เสมอ** ถ้าไม่ผ่านให้ถอด vhost ออกแล้วล้ม apply |
 | อยู่หลัง Cloudflare proxy + **Full (strict)** แล้วขอ cert ไม่ได้ | CF ต่อ origin ด้วย HTTPS ตั้งแต่ request แรก แต่ origin ยังไม่มี cert = chicken-and-egg (ACME ไม่ผ่านทั้ง tls-alpn-01 และ http-01) | ใส่ Cloudflare **Origin Certificate** ชั่วคราวให้ CF ต่อติดก่อน แล้ว ACME จะผ่านเองแล้วค่อยถอดออก |
+| dev คนที่สอง deploy ไม่ได้ (`tar: Cannot open: Permission denied`) | `chown` ไม่มี `-R` ไฟล์ย่อยยังเป็นของคนแรกที่ deploy | `chown -R <user>:0` + `chmod -R g+w` ทุกครั้งที่ส่ง source |
+| cron ที่เขียนไฟล์ล้มเงียบ ๆ หลังเปลี่ยนคน deploy | container รันด้วย gid 0 แต่ group ของไฟล์กลายเป็นของ dev | group เป็น `0` และ `g+w` เสมอ |
+| Windows (Git Bash) รัน deploy.sh ไม่ผ่านขั้นตรวจ DNS | ไม่มี `dig` | `deploy.sh` ลอง `dig` → `host` → `nslookup` → `python3` แล้วข้ามถ้าไม่มีเลย |
 | bash ตายเงียบ ๆ ไม่มี error | `grep` ไม่เจอ = exit 1 แล้ว `set -e` ฆ่าทั้งสคริปต์ · `"${ARR[@]}"` ของ array ว่างตายใต้ `set -u` (bash 3.2 บน macOS) | `set +e` ตลอดขั้นตรวจ · `${ARR[@]+"${ARR[@]}"}` |
 
 ## ใช้เป็น module
