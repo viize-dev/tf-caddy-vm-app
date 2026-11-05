@@ -49,8 +49,12 @@ locals {
     ],
     [
       "  reverse_proxy 127.0.0.1:${var.host_port} {",
-      "    header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}",
     ],
+    # หลัง Cloudflare: IP จริงอยู่ใน CF-Connecting-IP / DNS ชี้ตรงมาที่ VM: header นั้นว่าง
+    # → ปล่อย Caddy ตั้ง X-Forwarded-For เป็น IP ผู้ใช้เอง (ค่า default ของ reverse_proxy)
+    var.behind_cloudflare ? [
+      "    header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}",
+    ] : [],
     var.long_lived_stream ? [
       "    transport http {",
       "      read_timeout 0",

@@ -85,6 +85,17 @@ variable "caddy_container" {
   default     = "caddy"
 }
 
+variable "behind_cloudflare" {
+  description = <<-EOT
+    true = โดเมนอยู่หลัง Cloudflare (proxy สีส้ม): เอา IP ผู้ใช้จาก header CF-Connecting-IP
+
+    false = DNS ชี้ตรงมาที่ VM: header นั้นไม่มี ถ้าเปิดไว้ แอปจะเห็น IP ผู้ใช้ว่าง
+    แล้วตกไปใช้ IP ภายในของ docker แทน (log / rate limit / audit ผิดทั้งหมด)
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "long_lived_stream" {
   description = <<-EOT
     true = ตั้ง read/write timeout ของ reverse_proxy เป็น 0
